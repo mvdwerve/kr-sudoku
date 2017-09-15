@@ -2,8 +2,8 @@ import operator
 from itertools import product
 from functools import reduce
 import sympy
-from sympy.logic.boolalg import simplify_logic, to_cnf, Not
 from sys import argv
+import boolexpr as bx
 
 class Sudoku:
     def __init__(self, square):
@@ -14,7 +14,11 @@ class Sudoku:
         # generate _all_ the variables, in an n*n*n matrix, because each variable has n options in n*n places
         # the indices are row, column, variables, or rather self.vars_[row][column][var]
         self.names_ = ['%d_%d_%d' % (j, i, k + 1) for i, j, k in product(range(self.n_), repeat=3)]
-        self.syms_ = dict(zip(self.names_, sympy.symbols(self.names_)))
+        #self.syms_ = dict(zip(self.names_, sympy.symbols(self.names_)))
+
+        self.ctx_ = bx.Context()
+        
+        self.highest_ = 0
 
     def rules(self):
         if self.rules_ != None:
@@ -40,23 +44,40 @@ class Sudoku:
         total = one & two_row & two_col & block_rule
 
         # finally, all the rules should be true, and in cnf
-        return to_cnf(total)
+        return total.tseytin(self.ctx_).simplify()
 
     def var(self, row, column, value):
-        return self.syms_['%d_%d_%d' % (row, column, value + 1)]
+        return self.ctx_.get_var('%d_%d_%d' % (row, column, value + 1))
+
+    def extract(self, var):
+        name = str(var)
+        return name[1:] if name[0] == '~' else name 
 
     def index(self, var):
-        return self.names_.index(var.name) + 1
+        name = self.extract(var)
+        if 'a' in name:
+            found = int(name[2:])
+            self.highest_ = max(self.highest_, found)
+            return len(self.names_) + found
+        return self.names_.index(name) + 1
+
+    def dimac_sentence(self, expr):
+        if isinstance(expr, bx.Variable):
+            return str(self.index(expr))
+        elif isinstance(expr, bx.Complement):
+            return "-" + str(self.index(expr))
+        else:
+            return " ".join([self.dimac_sentence(ex) for ex in expr.args])
 
     def dimacs(self):
         # get the rules once
         rules = self.rules().args
 
-        # the header that is required
-        header = "p cnf %d %d\n" % (len(self.names_), len(rules)) 
-        
         # do a nice list comprehension
-        l = "\n".join([" ".join(["%s%d" % ("-" if isinstance(a, Not) else "", sudoku.index(a.args[0] if isinstance(a, Not) else a)) for a in rule.args]) for rule in rules])
+        l = "\n".join([self.dimac_sentence(rule) for rule in rules])
+
+        # the header that is required
+        header = "p cnf %d %d\n" % (len(self.names_) + self.highest_, len(rules)) 
 
         # simply append
         return header + l
