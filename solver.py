@@ -15,7 +15,7 @@ import re
 
 RESULT_FILE = None
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.CRITICAL)
 
 
 class Solver(object):

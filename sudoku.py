@@ -4,21 +4,41 @@ from functools import reduce
 import sympy
 from sys import argv
 import boolexpr as bx
+import pandas as pd
+import pycosat 
 
 class Sudoku:
-    def __init__(self, square):
+    def __init__(self, square, given):
         self.square_ = int(square)
         self.n_ = self.square_ * self.square_
         self.rules_ = None
 
         # generate _all_ the variables, in an n*n*n matrix, because each variable has n options in n*n places
         # the indices are row, column, variables, or rather self.vars_[row][column][var]
-        self.names_ = ['%d_%d_%d' % (j, i, k + 1) for i, j, k in product(range(self.n_), repeat=3)]
+        self.names_ = ['%d_%d_%d' % (i, j, k + 1) for i, j, k in product(range(self.n_), repeat=3)]
         #self.syms_ = dict(zip(self.names_, sympy.symbols(self.names_)))
 
+        # the context and the found highest
         self.ctx_ = bx.Context()
-        
         self.highest_ = 0
+
+        # nothing given yet
+        self.given_ = None
+
+        # add the givens
+        for i, c in enumerate(given):
+            # if nothing is given, we skip
+            if c == '.':
+                continue
+
+            # calculate the row and colum
+            col = i % 9 
+            row = int((i - col) / 9) 
+            
+            # get the variable and add it as a unit clause
+            var = self.var(row, col, int(c) - 1)
+            self.given_ = var if self.given_ == None else self.given_ & var
+
 
     def rules(self):
         if self.rules_ != None:
@@ -41,10 +61,10 @@ class Sudoku:
         block_rule = reduce(operator.and_, [reduce(operator.xor, [self.var(br + i, bc + j, k) for i, j in product(range(self.square_), repeat=2)]) for br, bc, k in product(range(self.square_), range(self.square_), range(self.n_))])
 
         # all rules should be true
-        total = one & two_row & two_col & block_rule
+        total = one & two_row & two_col & block_rule & self.given_
 
         # finally, all the rules should be true, and in cnf
-        return total.tseytin(self.ctx_).simplify()
+        return total.simplify().tseytin(self.ctx_)
 
     def var(self, row, column, value):
         return self.ctx_.get_var('%d_%d_%d' % (row, column, value + 1))
@@ -74,7 +94,7 @@ class Sudoku:
         rules = self.rules().args
 
         # do a nice list comprehension
-        l = "\n".join([self.dimac_sentence(rule) for rule in rules])
+        l = "\n".join([self.dimac_sentence(rule) + " 0" for rule in rules])
 
         # the header that is required
         header = "p cnf %d %d\n" % (len(self.names_) + self.highest_, len(rules)) 
@@ -83,8 +103,11 @@ class Sudoku:
         return header + l
 
 if __name__=="__main__":
+    # load the 100 sudokus
+    sudokus = pd.read_csv('sudoku.csv')
+
     # create a normal standard sudoku
-    sudoku = Sudoku(int(argv[1]))
+    sudoku = Sudoku(int(argv[1]), sudokus.iloc[0][0])
 
     # and output the rules
-    print(sudoku.dimacs())
+    print(sudoku.dimacs(), end="")
