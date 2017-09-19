@@ -42,26 +42,23 @@ class Sudoku:
         # todo: don't add double clauses
         self.total_.append(clause)
 
+    def add_clauses(self, clauses):
+        for clause in clauses:
+            self.add_clause(clause)
+
     def rules(self):
-        # 1. every square _must_ have a single one set
-        for row, column in product(range(self.n_), repeat=2):
-            self.add_clause([self.var(row, column, v) for v in range(self.n_)])
+        # http://sat.inesc.pt/~ines/publications/aimath06.pdf
 
-        # 2. every number must be set in a row at least once
-        for v in range(self.n_):
-            for i in range(self.n_):
-                self.add_clause([self.var(i, j, v) for j in range(self.n_)])
-                self.add_clause([self.var(j, i, v) for j in range(self.n_)])
+        # 1. at least one number in each entry
+        self.add_clauses([[self.var(x, y, z) for z in range(self.n_)] for x, y in product(range(self.n_), repeat=2)])
 
-        # blocks should have every number _at least_ once
-        for v in range(self.n_):
-            for br, bc in product(range(self.square_), repeat=2):
-                self.add_clause([self.var(br + i, bc + j, v) for i, j in product(range(self.square_), repeat=2)])
+        # 2. every number appears at most once in each row/column
+        self.add_clauses([["-" + self.var(x, y, z), "-" + self.var(i, y, z)] for y, z, x in product(range(self.n_), range(self.n_), range(self.n_ - 1)) for i in range(x + 1, self.n_)])
+        self.add_clauses([["-" + self.var(x, y, z), "-" + self.var(x, i, z)] for y, z, x in product(range(self.n_), range(self.n_), range(self.n_ - 1)) for i in range(x + 1, self.n_)])
 
-        # each cell may have _at most_ a single entry
-        for r, c in product(range(self.n_), repeat=2):
-            for v in range(self.n_ - 1):
-                self.add_clause(["-" + self.var(r, c, v), "-" + self.var(r, c, v + 1)])
+        # 3. each number appears at most once in each 3x3 subgrid
+        self.add_clauses([["-" + self.var(3*i + x, 3*j + y, z), "-" + self.var(3*i + x, 3*j + k, z)] for z, i, j, x, y in product(range(self.n_), range(self.square_), range(self.square_), range(self.square_), range(self.square_)) for k in range(y + 1, self.square_)])
+        self.add_clauses([["-" + self.var(3*i + x, 3*j + y, z), "-" + self.var(3*i + k, 3*j + l, z)] for z, i, j, x, y in product(range(self.n_), range(self.square_), range(self.square_), range(self.square_), range(self.square_)) for k in range(y + 1, self.square_)  for l in range(self.square_)])
 
         # finally, all the rules should be true, and in cnf
         return self.total_
@@ -96,6 +93,7 @@ class Sudoku:
     def solve(self):
         # get the rules
         rules = self.rules()
+        print(rules)
 
         # now we map it to the numeric vars
         cnf = [[self.index(ex) for ex in rule] for rule in rules]
@@ -104,6 +102,7 @@ class Sudoku:
         return pycosat.solve(cnf)
 
     def print(self, solved=True):
+        print(self.solve())
         # first, get all the givens  
         filled = [self.index(el[0]) for el in self.rules() if len(el) == 1] if not solved else [el for el in self.solve() if el > 0]
         
