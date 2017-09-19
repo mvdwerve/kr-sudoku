@@ -1,11 +1,8 @@
 import operator
 from itertools import product
 from functools import reduce
-import sympy
 from sys import argv
-import boolexpr as bx
 import pandas as pd
-import pycosat 
 
 class Sudoku:
     def __init__(self, square, given):
@@ -19,7 +16,6 @@ class Sudoku:
         #self.syms_ = dict(zip(self.names_, sympy.symbols(self.names_)))
 
         # the context and the found highest
-        self.ctx_ = bx.Context()
         self.highest_ = 0
 
         # nothing given yet
@@ -82,6 +78,9 @@ class Sudoku:
         mult = -1 if var[0] == '-' else 1
         return mult * (self.names_.index(self.extract(var)) + 1)
 
+    def varname(self, index):
+        return self.names_[abs(index) - 1]
+
     def dimac_sentence(self, expr):
         return " ".join([str(self.index(ex)) for ex in expr])
 
@@ -120,9 +119,30 @@ class Sudoku:
             
             # get the filled
             filled = [el for el in self.solve() if el > 0]
-        
-        # and we get the indices that
-        print(len(filled))
+
+        # sort the variables for easy printing
+        vars = [self.varname(idx) for idx in sorted(filled)]
+
+        # the last
+        last = (0, 0)
+
+        if len(filled) != self.n_ * self.n_:
+            raise ValueError("Not solved: " + str(filled))
+
+        # and we get the actual variables
+        for var in vars:
+            # split it into row_col and value
+            rc, val = var.split('__')
+            r, c = rc.split('_')
+
+            # print a newline every row
+            print("|%.2d" % int(val), end="")
+
+            if int(c) == self.n_ - 1:
+                print("")
+
+            # store the last set value
+            last = (int(r), int(c))
 
         # now we convert these numbers to 
 
@@ -131,11 +151,27 @@ if __name__=="__main__":
     # load the 100 sudokus
     sudokus = pd.read_csv('sudoku.csv')
 
-    # create a normal standard sudoku
-    sudoku = Sudoku(int(argv[1]), sudokus.iloc[0][0])
+    # the dimension
+    dim = int(argv[1])
 
-    sudoku.print(solved=False)
-    sudoku.print(solved=True)
+    if dim == 3:
+        # create a normal standard sudoku
+        sudoku = Sudoku(dim, sudokus.iloc[0][0])
+    else:
+        # for 4d, lets assume no givens
+        sudoku = Sudoku(dim, [])
 
+    """
+    try:
+        sudoku.print(solved=False)
+    except:
+        pass
+
+    try:
+        sudoku.print(solved=True)
+    except:
+        pass
     # and output the rules
-    #print(sudoku.dimacs(), end="")
+    """
+
+    print(sudoku.dimacs(), end="")
