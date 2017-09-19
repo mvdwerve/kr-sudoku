@@ -13,7 +13,6 @@ class Sudoku:
         # generate _all_ the variables, in an n*n*n matrix, because each variable has n options in n*n places
         # the indices are row, column, variables, or rather self.vars_[row][column][var]
         self.names_ = ['%d_%d__%d' % (i, j, k + 1) for i, j, k in product(range(self.n_), repeat=3)]
-        #self.syms_ = dict(zip(self.names_, sympy.symbols(self.names_)))
 
         # the context and the found highest
         self.highest_ = 0
@@ -58,8 +57,8 @@ class Sudoku:
         self.add_clauses([["-" + self.var(x, y, z), "-" + self.var(x, i, z)] for x, z, y in product(range(self.n_), range(self.n_), range(self.n_ - 1)) for i in range(y + 1, self.n_)])
 
         # 3. each number appears at most once in each 3x3 subgrid
-        self.add_clauses([["-" + self.var(3*i + x, 3*j + y, z), "-" + self.var(3*i + x, 3*j + k, z)] for z, i, j, x, y in product(range(self.n_), range(self.square_), range(self.square_), range(self.square_), range(self.square_)) for k in range(y + 1, self.square_)])
-        self.add_clauses([["-" + self.var(3*i + x, 3*j + y, z), "-" + self.var(3*i + k, 3*j + l, z)] for z, i, j, x, y in product(range(self.n_), range(self.square_), range(self.square_), range(self.square_), range(self.square_)) for k in range(x + 1, self.square_)  for l in range(self.square_)])
+        self.add_clauses([["-" + self.var(self.square_*i + x, self.square_*j + y, z), "-" + self.var(self.square_*i + x, self.square_*j + k, z)] for z, i, j, x, y in product(range(self.n_), range(self.square_), range(self.square_), range(self.square_), range(self.square_)) for k in range(y + 1, self.square_)])
+        self.add_clauses([["-" + self.var(self.square_*i + x, self.square_*j + y, z), "-" + self.var(self.square_*i + k, self.square_*j + l, z)] for z, i, j, x, y in product(range(self.n_), range(self.square_), range(self.square_), range(self.square_), range(self.square_)) for k in range(x + 1, self.square_)  for l in range(self.square_)])
 
         # we now generated the rules
         self.generatedrules_ = True
