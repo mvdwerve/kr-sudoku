@@ -64,7 +64,7 @@ class Sudoku:
         total = one & two_row & two_col & block_rule & self.given_
 
         # finally, all the rules should be true, and in cnf
-        return total.simplify().tseytin(self.ctx_)
+        return total.simplify().tseytin(self.ctx_).simplify()
 
     def var(self, row, column, value):
         return self.ctx_.get_var('%d_%d_%d' % (row, column, value + 1))
@@ -89,18 +89,47 @@ class Sudoku:
         else:
             return " ".join([self.dimac_sentence(ex) for ex in expr.args])
 
+    def cnf_sentence(self, expr):
+        if isinstance(expr, bx.Variable):
+            return [self.index(expr)]
+        elif isinstance(expr, bx.Complement):
+            return [-self.index(expr)]
+        else:
+            return [self.cnf_sentence(ex)[0] for ex in expr.args]  
+
     def dimacs(self):
         # get the rules once
         rules = self.rules().args
 
         # do a nice list comprehension
-        l = "\n".join([self.dimac_sentence(rule) + " 0" for rule in rules])
+        l = "\n".join([" ".join([str(c) for c in self.cnf_sentence(rule)]) + " 0" for rule in rules])
 
         # the header that is required
         header = "p cnf %d %d\n" % (len(self.names_) + self.highest_, len(rules)) 
 
         # simply append
         return header + l
+
+    def solve(self):
+        # get the rules
+        rules = self.rules().args
+
+        # now we map it to the numeric vars
+        cnf = [self.cnf_sentence(rule) for rule in rules]
+
+        print(cnf)
+
+        # solve using pycosat
+        return pycosat.solve(cnf)
+
+    def print(self, solved=True):
+        # first, get all the givens  
+        filled = [self.index(el.args[0]) for el in self.rules().args if len(el.args) == 1] if not solved else [el for el in self.solve() if el > 0]
+        
+        # and we get the indices that
+        print(len(filled))
+
+        # now we convert these numbers to 
 
 if __name__=="__main__":
     # load the 100 sudokus
@@ -110,4 +139,6 @@ if __name__=="__main__":
     sudoku = Sudoku(int(argv[1]), sudokus.iloc[0][0])
 
     # and output the rules
-    print(sudoku.dimacs(), end="")
+    #sudoku.print(solved=False)
+    #sudoku.print(solved=True)
+    print(sudoku.dimacs())
