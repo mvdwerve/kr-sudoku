@@ -38,6 +38,8 @@ class Sudoku:
             # get the variable and add it as a unit clause
             self.add_clause([self.var(row, col, int(c) - 1)])
 
+        self.generatedrules_ = False
+
     def add_clause(self, clause):
         # todo: don't add double clauses
         self.total_.append(clause)
@@ -47,6 +49,9 @@ class Sudoku:
             self.add_clause(clause)
 
     def rules(self):
+        if self.generatedrules_:
+            return self.total_
+
         # http://sat.inesc.pt/~ines/publications/aimath06.pdf
 
         # 1. at least one number in each entry
@@ -54,11 +59,14 @@ class Sudoku:
 
         # 2. every number appears at most once in each row/column
         self.add_clauses([["-" + self.var(x, y, z), "-" + self.var(i, y, z)] for y, z, x in product(range(self.n_), range(self.n_), range(self.n_ - 1)) for i in range(x + 1, self.n_)])
-        self.add_clauses([["-" + self.var(x, y, z), "-" + self.var(x, i, z)] for y, z, x in product(range(self.n_), range(self.n_), range(self.n_ - 1)) for i in range(x + 1, self.n_)])
+        self.add_clauses([["-" + self.var(x, y, z), "-" + self.var(x, i, z)] for x, z, y in product(range(self.n_), range(self.n_), range(self.n_ - 1)) for i in range(y + 1, self.n_)])
 
         # 3. each number appears at most once in each 3x3 subgrid
         self.add_clauses([["-" + self.var(3*i + x, 3*j + y, z), "-" + self.var(3*i + x, 3*j + k, z)] for z, i, j, x, y in product(range(self.n_), range(self.square_), range(self.square_), range(self.square_), range(self.square_)) for k in range(y + 1, self.square_)])
-        self.add_clauses([["-" + self.var(3*i + x, 3*j + y, z), "-" + self.var(3*i + k, 3*j + l, z)] for z, i, j, x, y in product(range(self.n_), range(self.square_), range(self.square_), range(self.square_), range(self.square_)) for k in range(y + 1, self.square_)  for l in range(self.square_)])
+        self.add_clauses([["-" + self.var(3*i + x, 3*j + y, z), "-" + self.var(3*i + k, 3*j + l, z)] for z, i, j, x, y in product(range(self.n_), range(self.square_), range(self.square_), range(self.square_), range(self.square_)) for k in range(x + 1, self.square_)  for l in range(self.square_)])
+
+        # we now generated the rules
+        self.generatedrules_ = True
 
         # finally, all the rules should be true, and in cnf
         return self.total_
@@ -82,29 +90,36 @@ class Sudoku:
         rules = self.rules()
 
         # do a nice list comprehension
-        l = "\n".join([self.dimac_sentence(rule) + " 0" for rule in rules])
+        l = "\n".join([" ".join([str(el) for el in rule]) + " 0" for rule in self.cnf()])
 
         # the header that is required
-        header = "p cnf %d %d\n" % (len(self.names_) + self.highest_, len(rules)) 
+        header = "p cnf %d %d\n" % (len(self.names_), len(rules)) 
 
         # simply append
         return header + l
 
+    def cnf(self):
+        return [[self.index(ex) for ex in rule] for rule in self.rules()]
+
     def solve(self):
-        # get the rules
-        rules = self.rules()
-        print(rules)
-
-        # now we map it to the numeric vars
-        cnf = [[self.index(ex) for ex in rule] for rule in rules]
-
         # solve using pycosat
-        return pycosat.solve(cnf)
+        return pycosat.solve(self.cnf())
 
     def print(self, solved=True):
-        print(self.solve())
-        # first, get all the givens  
-        filled = [self.index(el[0]) for el in self.rules() if len(el) == 1] if not solved else [el for el in self.solve() if el > 0]
+        if not solved:
+            # first, get all the givens  
+            filled = [self.index(el[0]) for el in self.rules() if len(el) == 1] 
+            
+        else: 
+            # get the solution
+            sol = self.solve()
+
+            # not satisfiable
+            if sol == "UNSAT":
+                raise ValueError('UNSAT')
+            
+            # get the filled
+            filled = [el for el in self.solve() if el > 0]
         
         # and we get the indices that
         print(len(filled))
