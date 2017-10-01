@@ -166,13 +166,14 @@ if __name__=="__main__":
 
     # the dimension
     dim = int(argv[1])
+    ext = argv[2]
 
     if dim == 3:
         # create a normal standard sudoku
-        sudoku = Sudoku(dim, sudokus.iloc[0][0], True)
+        sudoku = Sudoku(dim, sudokus.iloc[0][0], ext)
     else:
         # for 4d, lets assume no givens
-        sudoku = Sudoku(dim, [])
+        sudoku = Sudoku(dim, [], ext)
 
     """
     try:
