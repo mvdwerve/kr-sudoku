@@ -153,7 +153,7 @@ if __name__=="__main__":
     # the dimension
     dim = int(argv[1])
 
-    if dim == 3:
+    if dim == 3 and False:
         # create a normal standard sudoku
         sudoku = Sudoku(dim, sudokus.iloc[0][0])
     else:
