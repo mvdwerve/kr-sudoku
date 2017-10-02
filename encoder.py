@@ -77,7 +77,7 @@ class NaiveEncoder(Encoder):
         # 1. at least one number in each entry (Cell defined)
         self.add_clauses([[self.mapper.var(x, y, z) for z in range(self.mapper.n)] for x, y in product(range(self.mapper.n), repeat=2)])
 
-        # 2. every number appears at most once in each row/column (Row/Col defined)
+        # 2. every number appears at most once in each row/column (Row/Col unique)
         self.add_clauses([["-" + self.mapper.var(x, y, z), "-" + self.mapper.var(i, y, z)] for y, z, x in product(range(self.mapper.n), range(self.mapper.n), range(self.mapper.n - 1)) for i in range(x + 1, self.mapper.n)])
         self.add_clauses([["-" + self.mapper.var(x, y, z), "-" + self.mapper.var(x, i, z)] for x, z, y in product(range(self.mapper.n), range(self.mapper.n), range(self.mapper.n - 1)) for i in range(y + 1, self.mapper.n)])
 
@@ -95,29 +95,45 @@ class ExtendedNaiveEncoder(NaiveEncoder):
         # 1. at most one number in each entry (cell unique)
         self.add_clauses([["-" + self.mapper.var(x, y, z), "-" + self.mapper.var(x, y, i)] for x, y, z in product(range(self.mapper.n), range(self.mapper.n), range(self.mapper.n - 1)) for i in range(z + 1, self.mapper.n)])
 
-        # 2. every number appears at least once in each row/column (row/col unique)
+        # 2. every number appears at least once in each row/column (row/col defined)
         self.add_clauses([[self.mapper.var(x, y, z) for x in range(self.mapper.n)] for y, z in product(range(self.mapper.n), repeat=2)])
         self.add_clauses([[self.mapper.var(x, y, z) for y in range(self.mapper.n)] for x, z in product(range(self.mapper.n), repeat=2)])
 
         # 3. each number appears at least once in each 3x3 subgrid (block defined)
         self.add_clauses([[self.mapper.var(self.mapper.square*i + x, self.mapper.square*j + y, z) for z in range(self.mapper.n)] for i, j, x, y in product(range(self.mapper.square), repeat=4)])
 
-class EfficientEncoder(Encoder):
+class EfficientEncoder(NaiveEncoder):
     def encode_rules(self):
         # [Weber, 2005] thought of this encoding, it's in-between
         #: cell defined, cell unique, row unique, column unique, block unique
 
-        # 1. at least one number in each entry (Cell defined)
-        self.add_clauses([[self.mapper.var(x, y, z) for z in range(self.mapper.n)] for x, y in product(range(self.mapper.n), repeat=2)])
+        # first we make the naive encoding
+        NaiveEncoder.encode_rules(self)
+
+        # we add clauses to make the cell unique
+        self.add_clauses([["-" + self.mapper.var(x, y, z), "-" + self.mapper.var(x, y, i)] for x, y, z in product(range(self.mapper.n), range(self.mapper.n), range(self.mapper.n - 1)) for i in range(z + 1, self.mapper.n)])
+
+class GivensEncoder(Encoder):
+    def __init__(self, mapper, sudoku):
+        # may be mismatch
+        if len(sudoku) != mapper.n * mapper.n:
+            raise ValueError('mismatch for the sudoku size with the mapper')
         
-        # 2. every number appears at least once in each row/column (row/col unique)
-        self.add_clauses([[self.mapper.var(x, y, z) for x in range(self.mapper.n)] for y, z in product(range(self.mapper.n), repeat=2)])
-        self.add_clauses([[self.mapper.var(x, y, z) for y in range(self.mapper.n)] for x, z in product(range(self.mapper.n), repeat=2)])
+        # initialize the base
+        Encoder.__init__(self, mapper)
 
-        # 3. each number appears at most once in each 3x3 subgrid (Block unique)
-        self.add_clauses([["-" + self.mapper.var(self.mapper.square*i + x, self.mapper.square*j + y, z), "-" + self.mapper.var(self.mapper.square*i + x, self.mapper.square*j + k, z)] for z, (i, j, x, y) in product(range(self.mapper.n), product(range(self.mapper.square), repeat=4)) for k in range(y + 1, self.mapper.square)])
-        self.add_clauses([["-" + self.mapper.var(self.mapper.square*i + x, self.mapper.square*j + y, z), "-" + self.mapper.var(self.mapper.square*i + k, self.mapper.square*j + l, z)] for z, (i, j, l, x, y) in product(range(self.mapper.n), product(range(self.mapper.square), repeat=5)) for k in range(x + 1, self.mapper.square)])
+        # and we finally loop over the sudoku
+        for i, value in enumerate(sudoku):
+            # nothing to do if there is no given here
+            if value == 0:
+                continue
 
+            # get the column and row
+            column = i % mapper.n
+            row = int((i - column) / mapper.n)
+
+            # now we add the clause
+            self.add_clause([self.mapper.var(row, column, value - 1)])
 
 if __name__=="__main__":
     # we need the argument parser
