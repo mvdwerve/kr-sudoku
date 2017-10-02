@@ -5,10 +5,11 @@ from sys import argv
 import pandas as pd
 
 class Sudoku:
-    def __init__(self, square, given):
+    def __init__(self, square, given, extended = False):
         self.square_ = int(square)
         self.n_ = self.square_ * self.square_
         self.rules_ = None
+        self.ext_rules_ = extended
 
         # generate _all_ the variables, in an n*n*n matrix, because each variable has n options in n*n places
         # the indices are row, column, variables, or rather self.vars_[row][column][var]
@@ -49,6 +50,7 @@ class Sudoku:
 
         # http://sat.inesc.pt/~ines/publications/aimath06.pdf
 
+        # Minimal encoding: 81 nine-ary encodings, 8748 binary
         # 1. at least one number in each entry
         self.add_clauses([[self.var(x, y, z) for z in range(self.n_)] for x, y in product(range(self.n_), repeat=2)])
 
@@ -59,6 +61,18 @@ class Sudoku:
         # 3. each number appears at most once in each 3x3 subgrid
         self.add_clauses([["-" + self.var(self.square_*i + x, self.square_*j + y, z), "-" + self.var(self.square_*i + x, self.square_*j + k, z)] for z, i, j, x, y in product(range(self.n_), range(self.square_), range(self.square_), range(self.square_), range(self.square_)) for k in range(y + 1, self.square_)])
         self.add_clauses([["-" + self.var(self.square_*i + x, self.square_*j + y, z), "-" + self.var(self.square_*i + k, self.square_*j + l, z)] for z, i, j, x, y in product(range(self.n_), range(self.square_), range(self.square_), range(self.square_), range(self.square_)) for k in range(x + 1, self.square_)  for l in range(self.square_)])
+
+        # Extended encoding:
+        if self.ext_rules_:
+            # 1. at most one number in each entry
+            self.add_clauses([["-" + self.var(x, y, z), "-" + self.var(x, y, i)] for x, y, z in product(range(self.n_), range(self.n_), range(self.n_ - 1)) for i in range(z + 1, self.n_)])
+
+            # 2. every number appears at least once in each row/column
+            self.add_clauses([[self.var(x, y, z) for x in range(self.n_)] for y, z in product(range(self.n_), repeat=2)])
+            self.add_clauses([[self.var(x, y, z) for y in range(self.n_)] for x, z in product(range(self.n_), repeat=2)])
+
+            # 3. each number appears at least once in each 3x3 subgrid
+            self.add_clauses([[self.var(self.square_*i + x, self.square_*j + y, z) for z in range(self.n_)] for i, j, x, y in product(range(self.square_), repeat=4)])
 
         # we now generated the rules
         self.generatedrules_ = True
@@ -152,13 +166,14 @@ if __name__=="__main__":
 
     # the dimension
     dim = int(argv[1])
+    ext = argv[2]
 
     if dim == 3 and False:
         # create a normal standard sudoku
-        sudoku = Sudoku(dim, sudokus.iloc[0][0])
+        sudoku = Sudoku(dim, sudokus.iloc[0][0], ext)
     else:
         # for 4d, lets assume no givens
-        sudoku = Sudoku(dim, [])
+        sudoku = Sudoku(dim, [], ext)
 
     """
     try:
